@@ -1,0 +1,29 @@
+{
+  "api_url": {
+    "description": "LinkEngine API 地址",
+    "type": "string",
+    "default": "http://127.0.0.1:8192",
+    "hint": "MC 服务器插件的 HTTP API 地址，格式: http://IP:端口"
+  },
+  "api_key": {
+    "description": "API 密钥",
+    "type": "string",
+    "default": "change-me-to-a-random-key",
+    "hint": "与 MC 服务器 config.yml 中 api.api-key 保持一致"
+  },
+  "admins": {
+    "description": "管理员列表",
+    "type": "list",
+    "items": {
+      "type": "string"
+    },
+    "default": [],
+    "hint": "管理员的用户ID列表（如QQ号），可执行管理类命令"
+  },
+  "player_bindmap": {
+    "description": "玩家绑定映射",
+    "type": "dict",
+    "default": {},
+    "hint": "用户ID到MC UUID的映射，用于 /town my 等命令。格式: {\"QQ号\": \"MC-UUID\"}"
+  }
+}
