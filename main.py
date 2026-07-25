@@ -9,6 +9,7 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api import logger, AstrBotConfig
 import asyncio
 import os
+import re
 from pathlib import Path
 
 from .core.api_client import MCBridgeClient
@@ -21,7 +22,7 @@ from .modules.server_commands import ServerCommandsModule
 from .modules.husktowns_commands import HusktownsCommandsModule
 
 
-@register("astrbot_plugin_mcbridge", "Cinnaio", "LinkEngine AstrBot 插件", "1.2.1")
+@register("astrbot_plugin_mcbridge", "Cinnaio", "LinkEngine AstrBot 插件", "1.2.2")
 class LinkEnginePlugin(Star):
     """AstrBot plugin for Minecraft server management via LinkEngine API."""
 
@@ -261,25 +262,36 @@ class LinkEnginePlugin(Star):
         result = await self.binding.cmd_bind_info(event)
         await event.send(MessageChain().message(result))
 
+    @staticmethod
+    def _command_rest(event: AstrMessageEvent, command: str) -> str:
+        """取指令名之后的剩余文本。
+
+        这两个管理命令不在 handler 上声明参数:@ 消息段会被展开成
+        "@昵称(QQ号)" 且昵称可能含空格,AstrBot 逐参数校验会报
+        "必要参数缺失/类型错误",VAR_POSITIONAL(*args)也不被支持。
+        """
+        text = re.sub(r"\s+", " ", (event.get_message_str() or "").strip())
+        if text.startswith(command):
+            text = text[len(command):]
+        return text.strip()
+
     @filter.command("查绑定")
-    async def cmd_bind_query(
-        self, event: AstrMessageEvent, target: str = "", *args,
-    ):
+    async def cmd_bind_query(self, event: AstrMessageEvent):
         """/查绑定 <QQ号|玩家名|@用户> - 查询绑定 (管理员)"""
         if not self._check_admin(event):
             await event.send(MessageChain().message("[绑定] 权限不足,此命令仅管理员可用"))
             return
+        target = self._command_rest(event, "查绑定")
         result = await self.binding.cmd_admin_query(event, target)
         await event.send(MessageChain().message(result))
 
     @filter.command("强制解绑")
-    async def cmd_force_unbind(
-        self, event: AstrMessageEvent, qq: str = "", *args,
-    ):
+    async def cmd_force_unbind(self, event: AstrMessageEvent):
         """/强制解绑 <QQ号|@用户> - 解除任意绑定 (管理员)"""
         if not self._check_admin(event):
             await event.send(MessageChain().message("[绑定] 权限不足,此命令仅管理员可用"))
             return
+        qq = self._command_rest(event, "强制解绑")
         result = await self.binding.cmd_admin_unbind(event, qq)
         await event.send(MessageChain().message(result))
 
