@@ -19,19 +19,18 @@ _PAGE = """<!doctype html>
   body {
     margin: 0; min-height: 100vh; display: flex;
     align-items: center; justify-content: center;
-    background: radial-gradient(120% 120% at 20% 0%,
-                #2b2f4a 0%, #191b24 55%, #101014 100%);
-    color: #e8eaf0;
+    background: linear-gradient(160deg, #f7f8fa 0%, #eceff4 100%);
+    color: #23272f;
     font-family: system-ui, "Segoe UI", "PingFang SC",
                  "Microsoft YaHei", sans-serif;
   }
   .card {
     width: min(92vw, 26rem); margin: 1rem;
-    padding: 2.75rem 2.25rem 2.25rem;
-    background: rgba(43, 45, 55, .85);
-    border: 1px solid rgba(255, 255, 255, .06);
+    padding: 2.75rem 2.25rem 2rem;
+    background: #ffffff;
+    border: 1px solid #e6e8ee;
     border-radius: 16px; text-align: center;
-    box-shadow: 0 12px 40px rgba(0, 0, 0, .45);
+    box-shadow: 0 10px 32px rgba(31, 41, 55, .08);
   }
   .logo {
     width: 64px; height: 64px;
@@ -39,17 +38,29 @@ _PAGE = """<!doctype html>
   }
   .brand {
     margin: .6rem 0 1.4rem; font-size: .95rem;
-    letter-spacing: .04em; color: #9aa0b4;
+    letter-spacing: .04em; color: #7a8091;
   }
-  .status { font-size: 2.4rem; line-height: 1; }
-  h1 { font-size: 1.3rem; margin: .8rem 0 .5rem; }
-  h1.ok { color: #7ee2a8; }
-  h1.err { color: #ff9a9a; }
+  .status { font-size: 2.2rem; line-height: 1; }
+  h1 { font-size: 1.3rem; margin: .7rem 0 .5rem; }
+  h1.ok { color: #16a34a; }
+  h1.err { color: #dc2626; }
   p {
-    margin: .3rem 0; color: #b9bfd0;
+    margin: .3rem 0; color: #5c6270;
     line-height: 1.7; font-size: .95rem;
   }
-  .hint { margin-top: 1.8rem; font-size: .78rem; color: #767c90; }
+  .links {
+    margin-top: 1.6rem; display: flex;
+    gap: .75rem; justify-content: center;
+  }
+  .links a {
+    flex: 1; max-width: 9rem; padding: .55rem 0;
+    background: #fff; border: 1px solid #d9dce3;
+    border-radius: 10px; color: #3a3f4b;
+    text-decoration: none; font-size: .9rem;
+    transition: background .15s, border-color .15s;
+  }
+  .links a:hover { background: #f2f4f8; border-color: #c3c8d4; }
+  .hint { margin-top: 1.4rem; font-size: .78rem; color: #9aa0ae; }
 </style>
 </head>
 <body>
@@ -60,6 +71,10 @@ _PAGE = """<!doctype html>
   <div class="status">__ICON__</div>
   <h1 class="__STATE__">__TITLE__</h1>
   <p>__DETAIL__</p>
+  <div class="links">
+    <a href="https://mscraft.uk" target="_blank" rel="noopener">官网</a>
+    <a href="https://skin.mscraft.uk" target="_blank" rel="noopener">皮肤站</a>
+  </div>
   <p class="hint">可直接关闭本页面返回 QQ 喵~</p>
 </div>
 </body>
