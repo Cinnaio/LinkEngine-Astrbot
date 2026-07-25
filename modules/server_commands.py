@@ -4,31 +4,17 @@ from ..core.base_module import BaseCommandModule
 
 
 class ServerCommandsModule(BaseCommandModule):
-    """Provides server status, player info, and command execution commands."""
+    """Provides server status and player info commands."""
 
     name = "server"
     required_api_module = "servercore"
-
-    # 命令别名映射: 别名 -> 实际命令名
-    aliases = {
-        "查服": "status",
-        "状态": "status",
-        "玩家": "players",
-        "在线": "players",
-    }
 
     def get_handlers(self) -> list:
         return [
             ("status", self.cmd_status, False),
             ("players", self.cmd_players, False),
             ("player", self.cmd_player, False),
-            ("cmd", self.cmd_execute, True),
-            ("plugins", self.cmd_plugins, True),
         ]
-
-    def resolve_alias(self, cmd: str) -> str:
-        """Resolve command alias to actual command name."""
-        return self.aliases.get(cmd, cmd)
 
     async def cmd_status(self, args: list[str]) -> str:
         """查看服务器状态（含在线玩家）"""
@@ -80,9 +66,9 @@ class ServerCommandsModule(BaseCommandModule):
         return "\n".join(lines)
 
     async def cmd_player(self, args: list[str]) -> str:
-        """查询指定玩家信息: /mc player <玩家名>"""
+        """查询指定玩家信息: /查 <玩家名>"""
         if not args:
-            return "[MC] 用法: /mc player <玩家名>"
+            return "[MC] 用法: /查 <玩家名>"
 
         name = args[0]
         resp = await self.api.get_player_info(name)
@@ -103,31 +89,3 @@ class ServerCommandsModule(BaseCommandModule):
         ]
         return "\n".join(lines)
 
-    async def cmd_execute(self, args: list[str]) -> str:
-        """执行服务器命令 (管理员): /mc cmd <命令>"""
-        if not args:
-            return "[MC] 用法: /mc cmd <命令>"
-
-        command = " ".join(args)
-        resp = await self.api.execute_command(command)
-        if not resp.get("success"):
-            return f"[MC] 命令执行失败: {resp.get('message', '未知错误')}"
-
-        data = resp.get("data", {})
-        return f"[MC] 命令已执行: /{command}\n结果: {data.get('message', '完成')}"
-
-    async def cmd_plugins(self, args: list[str]) -> str:
-        """查看已安装插件列表 (管理员)"""
-        resp = await self.api.get_plugins()
-        if not resp.get("success"):
-            return f"[MC] {resp.get('message', '获取插件列表失败')}"
-
-        plugins = resp.get("data", [])
-        if not plugins:
-            return "[MC] 没有已安装的插件"
-
-        lines = [f"已安装插件 ({len(plugins)})"]
-        for p in plugins:
-            status = "启用" if p.get("enabled") else "禁用"
-            lines.append(f"  {p['name']} v{p.get('version', '?')} [{status}]")
-        return "\n".join(lines)

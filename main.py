@@ -7,6 +7,7 @@ via the LinkEngine REST API.
 from astrbot.api.event import filter, AstrMessageEvent, MessageChain
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger, AstrBotConfig
+import os
 
 from .core.api_client import MCBridgeClient
 from .core.permission import PermissionChecker
@@ -14,7 +15,7 @@ from .modules.server_commands import ServerCommandsModule
 from .modules.husktowns_commands import HusktownsCommandsModule
 
 
-@register("astrbot_plugin_mcbridge", "Cinnaio", "LinkEngine AstrBot 插件", "1.0.0")
+@register("astrbot_plugin_mcbridge", "Cinnaio", "LinkEngine AstrBot 插件", "1.0.1")
 class LinkEnginePlugin(Star):
     """AstrBot plugin for Minecraft server management via LinkEngine API."""
 
@@ -55,102 +56,11 @@ class LinkEnginePlugin(Star):
         user_id = self._get_user_id(event)
         return self.permission.is_admin(user_id)
 
-    # ==================== MC Server Commands ====================
-
-    @filter.command("mc")
-    async def mc_command(self, event: AstrMessageEvent, sub_cmd: str = "", *args):
-        """MC服务器管理命令"""
-        if not sub_cmd:
-            await event.send(MessageChain().message(
-                "MC服务器命令:\n"
-                "/mc status - 服务器状态\n"
-                "/mc players - 在线玩家\n"
-                "/mc player <名字> - 玩家信息\n"
-                "/mc cmd <命令> - 执行命令 (管理员)\n"
-                "/mc plugins - 插件列表 (管理员)"
-            ))
-            return
-
-        server_module = next((m for m in self.modules if m.name == "server"), None)
-        if not server_module:
-            await event.send(MessageChain().message("[MC] 服务器模块未加载"))
-            return
-
-        resolved = server_module.resolve_alias(sub_cmd)
-        for cmd_name, handler, admin_only in server_module.get_handlers():
-            if cmd_name == resolved:
-                if admin_only and not self._check_admin(event):
-                    await event.send(MessageChain().message("[MC] 权限不足，此命令仅管理员可用"))
-                    return
-                result = await handler(list(args))
-                await event.send(MessageChain().message(result))
-                return
-
-        await event.send(MessageChain().message(f"[MC] 未知子命令: {sub_cmd}"))
-
-    # ==================== Town Commands ====================
-
-    @filter.command("town")
-    async def town_command(self, event: AstrMessageEvent, sub_cmd: str = "", *args):
-        """HuskTowns城镇管理命令"""
-        if not sub_cmd:
-            await event.send(MessageChain().message(
-                "城镇命令:\n"
-                "/town list - 城镇列表\n"
-                "/town info <名字> - 城镇信息\n"
-                "/town members <名字> - 成员列表\n"
-                "/town my - 我的城镇\n"
-                "/town create <名字> <UUID> - 创建 (管理员)\n"
-                "/town invite <城镇> <UUID> - 邀请 (管理员)\n"
-                "/town kick <城镇> <UUID> - 踢出 (管理员)\n"
-                "/town delete <名字> - 删除 (管理员)"
-            ))
-            return
-
-        town_module = next((m for m in self.modules if m.name == "husktowns"), None)
-        if not town_module:
-            await event.send(MessageChain().message("[城镇] HuskTowns 模块未加载"))
-            return
-
-        if sub_cmd == "my":
-            user_id = self._get_user_id(event)
-            uuid = self.player_bindmap.get(user_id)
-            if not uuid:
-                await event.send(MessageChain().message(
-                    "[城镇] 你还没有绑定MC账号。\n"
-                    "请联系管理员在配置中添加你的 QQ号 -> MC UUID 映射。"
-                ))
-                return
-            resp = await self.api_client.get_player_town(uuid)
-            if not resp.get("success"):
-                await event.send(MessageChain().message(f"[城镇] {resp.get('message', '查询失败')}"))
-                return
-            data = resp.get("data", {})
-            town = data.get("town", {})
-            await event.send(MessageChain().message(
-                f"[城镇] 你所在的城镇: {town.get('name', '未知')}\n"
-                f"角色: {data.get('role', '未知')}\n"
-                f"成员数: {town.get('memberCount', 0)}"
-            ))
-            return
-
-        resolved = town_module.resolve_alias(sub_cmd)
-        for cmd_name, handler, admin_only in town_module.get_handlers():
-            if cmd_name == resolved:
-                if admin_only and not self._check_admin(event):
-                    await event.send(MessageChain().message("[城镇] 权限不足，此命令仅管理员可用"))
-                    return
-                result = await handler(list(args))
-                await event.send(MessageChain().message(result))
-                return
-
-        await event.send(MessageChain().message(f"[城镇] 未知子命令: {sub_cmd}"))
-
-    # ==================== Alias Commands ====================
+    # ==================== MC 服务器命令 ====================
 
     @filter.command("查服")
-    async def alias_status(self, event: AstrMessageEvent):
-        """/查服 - 查看服务器状态"""
+    async def cmd_status(self, event: AstrMessageEvent):
+        """/查服 - 查看服务器状态 + 在线玩家"""
         server_module = next((m for m in self.modules if m.name == "server"), None)
         if not server_module:
             await event.send(MessageChain().message("[MC] 服务器模块未加载"))
@@ -158,8 +68,41 @@ class LinkEnginePlugin(Star):
         result = await server_module.cmd_status([])
         await event.send(MessageChain().message(result))
 
+    @filter.command("玩家")
+    async def cmd_players(self, event: AstrMessageEvent):
+        """/玩家 - 在线玩家详细列表"""
+        server_module = next((m for m in self.modules if m.name == "server"), None)
+        if not server_module:
+            await event.send(MessageChain().message("[MC] 服务器模块未加载"))
+            return
+        result = await server_module.cmd_players([])
+        await event.send(MessageChain().message(result))
+
+    @filter.command("在线")
+    async def cmd_online(self, event: AstrMessageEvent):
+        """/在线 - 在线玩家详细列表"""
+        server_module = next((m for m in self.modules if m.name == "server"), None)
+        if not server_module:
+            await event.send(MessageChain().message("[MC] 服务器模块未加载"))
+            return
+        result = await server_module.cmd_players([])
+        await event.send(MessageChain().message(result))
+
+    @filter.command("查")
+    async def cmd_player(self, event: AstrMessageEvent, name: str = ""):
+        """/查 <玩家名> - 查询指定玩家信息"""
+        server_module = next((m for m in self.modules if m.name == "server"), None)
+        if not server_module:
+            await event.send(MessageChain().message("[MC] 服务器模块未加载"))
+            return
+        args = [name] if name else []
+        result = await server_module.cmd_player(args)
+        await event.send(MessageChain().message(result))
+
+    # ==================== 城镇命令 ====================
+
     @filter.command("城镇列表")
-    async def alias_town_list(self, event: AstrMessageEvent):
+    async def cmd_town_list(self, event: AstrMessageEvent):
         """/城镇列表 - 查看所有城镇"""
         town_module = next((m for m in self.modules if m.name == "husktowns"), None)
         if not town_module:
@@ -167,6 +110,80 @@ class LinkEnginePlugin(Star):
             return
         result = await town_module.cmd_list([])
         await event.send(MessageChain().message(result))
+
+    @filter.command("查城镇")
+    async def cmd_town_info(self, event: AstrMessageEvent, name: str = ""):
+        """/查城镇 <城镇名> - 查看城镇详细信息"""
+        town_module = next((m for m in self.modules if m.name == "husktowns"), None)
+        if not town_module:
+            await event.send(MessageChain().message("[城镇] HuskTowns 模块未加载"))
+            return
+        args = [name] if name else []
+        result = await town_module.cmd_info(args)
+        await event.send(MessageChain().message(result))
+
+    @filter.command("查成员")
+    async def cmd_town_members(self, event: AstrMessageEvent, name: str = ""):
+        """/查成员 <城镇名> - 查看城镇成员列表"""
+        town_module = next((m for m in self.modules if m.name == "husktowns"), None)
+        if not town_module:
+            await event.send(MessageChain().message("[城镇] HuskTowns 模块未加载"))
+            return
+        args = [name] if name else []
+        result = await town_module.cmd_members(args)
+        await event.send(MessageChain().message(result))
+
+    @filter.command("我的城镇")
+    async def cmd_my_town(self, event: AstrMessageEvent):
+        """/我的城镇 - 查看自己所在城镇（需绑定）"""
+        town_module = next((m for m in self.modules if m.name == "husktowns"), None)
+        if not town_module:
+            await event.send(MessageChain().message("[城镇] HuskTowns 模块未加载"))
+            return
+
+        user_id = self._get_user_id(event)
+        uuid = self.player_bindmap.get(user_id)
+        if not uuid:
+            await event.send(MessageChain().message(
+                "[城镇] 你还没有绑定MC账号。\n"
+                "请联系管理员在配置中添加你的 QQ号 -> MC UUID 映射。"
+            ))
+            return
+        resp = await self.api_client.get_player_town(uuid)
+        if not resp.get("success"):
+            await event.send(MessageChain().message(f"[城镇] {resp.get('message', '查询失败')}"))
+            return
+        data = resp.get("data", {})
+        town = data.get("town", {})
+        await event.send(MessageChain().message(
+            f"[城镇] 你所在的城镇: {town.get('name', '未知')}\n"
+            f"角色: {data.get('role', '未知')}\n"
+            f"成员数: {town.get('memberCount', 0)}"
+        ))
+
+    # ==================== 帮助命令 ====================
+
+    @filter.command("帮助")
+    async def alias_help(self, event: AstrMessageEvent):
+        """/帮助 - 显示帮助信息"""
+        help_image = os.path.join(os.path.dirname(__file__), "assets", "help.png")
+        if os.path.exists(help_image):
+            await event.send(MessageChain().file_image(help_image))
+        else:
+            await event.send(MessageChain().message(
+                "命令帮助:\n"
+                "\n"
+                "MC服务器:\n"
+                "  /查服 - 服务器状态 + 在线玩家\n"
+                "  /玩家 或 /在线 - 在线玩家详细列表\n"
+                "  /查 <玩家名> - 查询指定玩家信息\n"
+                "\n"
+                "HuskTowns 城镇:\n"
+                "  /城镇列表 - 查看所有城镇\n"
+                "  /查城镇 <城镇名> - 城镇详细信息\n"
+                "  /查成员 <城镇名> - 城镇成员列表\n"
+                "  /我的城镇 - 查看自己所在城镇"
+            ))
 
     # ==================== Lifecycle ====================
 
