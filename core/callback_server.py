@@ -1,12 +1,17 @@
 """Minimal aiohttp HTTP server that receives the OAuth redirect callback."""
 
+import base64
 import html
+from pathlib import Path
 from typing import Awaitable, Callable, Optional
 
 from aiohttp import web
 
 # handler(state, code, error) -> (ok, title, detail)
 CallbackHandler = Callable[[str, str, str], Awaitable[tuple[bool, str, str]]]
+
+# 本地 logo 缺失/读取失败时的兜底
+_REMOTE_LOGO = "https://mscraft.uk/images/logo.png"
 
 _PAGE = """<!doctype html>
 <html lang="zh-CN">
@@ -15,6 +20,7 @@ _PAGE = """<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>账号绑定 | 群隙 ClusterGap</title>
+<link rel="icon" type="image/png" href="__LOGO__">
 <style>
   body {
     margin: 0; min-height: 100vh; display: flex;
@@ -65,9 +71,9 @@ _PAGE = """<!doctype html>
 </head>
 <body>
 <div class="card">
-  <img class="logo" src="https://mscraft.uk/images/logo.png"
+  <img class="logo" src="__LOGO__"
        alt="ClusterGap" onerror="this.style.display='none'">
-  <div class="brand">账号绑定 | 群隙 ClusterGap</div>
+  <div class="brand">群隙 ClusterGap</div>
   <div class="status">__ICON__</div>
   <h1 class="__STATE__">__TITLE__</h1>
   <p>__DETAIL__</p>
@@ -83,12 +89,31 @@ _PAGE = """<!doctype html>
 
 class CallbackServer:
     def __init__(self, host: str, port: int, path: str,
-                 handler: CallbackHandler):
+                 handler: CallbackHandler,
+                 logo_path: Optional[Path] = None):
         self.host = host
         self.port = int(port)
         self.path = path if path.startswith("/") else f"/{path}"
         self._handler = handler
+        self._logo_path = logo_path
+        self._logo_uri: Optional[str] = None
         self._runner: Optional[web.AppRunner] = None
+
+    def _logo_data_uri(self) -> str:
+        """本地 logo 转 data URI(懒加载缓存),favicon 与卡片图共用。"""
+        if self._logo_uri is None:
+            uri = _REMOTE_LOGO
+            try:
+                if self._logo_path and Path(self._logo_path).is_file():
+                    raw = Path(self._logo_path).read_bytes()
+                    uri = (
+                        "data:image/png;base64,"
+                        + base64.b64encode(raw).decode()
+                    )
+            except Exception:
+                pass  # 读取失败时回退远程 logo
+            self._logo_uri = uri
+        return self._logo_uri
 
     @property
     def running(self) -> bool:
@@ -115,6 +140,7 @@ class CallbackServer:
         ok, title, detail = await self._handler(state, code, error)
         page = (
             _PAGE
+            .replace("__LOGO__", self._logo_data_uri())
             .replace("__ICON__", "✅" if ok else "❌")
             .replace("__STATE__", "ok" if ok else "err")
             .replace("__TITLE__", html.escape(title))

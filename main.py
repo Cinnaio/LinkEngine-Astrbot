@@ -22,7 +22,7 @@ from .modules.server_commands import ServerCommandsModule
 from .modules.husktowns_commands import HusktownsCommandsModule
 
 
-@register("astrbot_plugin_mcbridge", "Cinnaio", "LinkEngine AstrBot 插件", "1.2.2")
+@register("astrbot_plugin_mcbridge", "Cinnaio", "LinkEngine AstrBot 插件", "1.2.3")
 class LinkEnginePlugin(Star):
     """AstrBot plugin for Minecraft server management via LinkEngine API."""
 
@@ -66,6 +66,7 @@ class LinkEnginePlugin(Star):
             port=config.get("callback_port", 8193),
             path=self.oidc.callback_path,
             handler=self.binding.handle_callback,
+            logo_path=Path(__file__).parent / "assets" / "logo.png",
         )
         self._binding_started = False
         try:
