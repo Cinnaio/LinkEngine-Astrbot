@@ -21,7 +21,7 @@ from .modules.server_commands import ServerCommandsModule
 from .modules.husktowns_commands import HusktownsCommandsModule
 
 
-@register("astrbot_plugin_mcbridge", "Cinnaio", "LinkEngine AstrBot 插件", "1.1.0")
+@register("astrbot_plugin_mcbridge", "Cinnaio", "LinkEngine AstrBot 插件", "1.2.0")
 class LinkEnginePlugin(Star):
     """AstrBot plugin for Minecraft server management via LinkEngine API."""
 
@@ -262,8 +262,10 @@ class LinkEnginePlugin(Star):
         await event.send(MessageChain().message(result))
 
     @filter.command("查绑定")
-    async def cmd_bind_query(self, event: AstrMessageEvent, target: str = ""):
-        """/查绑定 <QQ号|玩家名> - 查询绑定 (管理员)"""
+    async def cmd_bind_query(
+        self, event: AstrMessageEvent, target: str = "", *args,
+    ):
+        """/查绑定 <QQ号|玩家名|@用户> - 查询绑定 (管理员)"""
         if not self._check_admin(event):
             await event.send(MessageChain().message("[绑定] 权限不足,此命令仅管理员可用"))
             return
@@ -271,8 +273,10 @@ class LinkEnginePlugin(Star):
         await event.send(MessageChain().message(result))
 
     @filter.command("强制解绑")
-    async def cmd_force_unbind(self, event: AstrMessageEvent, qq: str = ""):
-        """/强制解绑 <QQ号> - 解除任意绑定 (管理员)"""
+    async def cmd_force_unbind(
+        self, event: AstrMessageEvent, qq: str = "", *args,
+    ):
+        """/强制解绑 <QQ号|@用户> - 解除任意绑定 (管理员)"""
         if not self._check_admin(event):
             await event.send(MessageChain().message("[绑定] 权限不足,此命令仅管理员可用"))
             return

@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Optional
 
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, MessageChain
+from astrbot.api.message_components import At
 
 from ..core.binding_store import Binding, BindingStore, format_uuid
 from ..core.oidc_client import OidcClient, OidcError
@@ -18,6 +19,20 @@ def _mask_qq(qq: str) -> str:
     if len(qq) <= 5:
         return qq
     return f"{qq[:2]}****{qq[-3:]}"
+
+
+def _target_from_event(event: AstrMessageEvent, fallback: str = "") -> str:
+    """优先取消息中 @ 的用户 QQ,没有 @ 时回退到文本参数。"""
+    try:
+        self_id = str(event.get_self_id())
+        for comp in event.message_obj.message:
+            if isinstance(comp, At):
+                qq = str(comp.qq)
+                if qq and qq not in ("all", self_id):
+                    return qq
+    except Exception:
+        pass
+    return (fallback or "").strip()
 
 
 class BindingModule:
@@ -87,10 +102,14 @@ class BindingModule:
     async def cmd_admin_query(
         self, event: AstrMessageEvent, target: str,
     ) -> str:
-        """/查绑定 <QQ号|玩家名> - 查询绑定(管理员)"""
+        """/查绑定 <QQ号|玩家名|@用户> - 查询绑定(管理员)"""
+        target = _target_from_event(event, target)
         if not target:
             total = await self.store.count()
-            return f"[绑定] 用法: /查绑定 <QQ号|玩家名>(当前共 {total} 条绑定)"
+            return (
+                f"[绑定] 用法: /查绑定 <QQ号|玩家名|@用户>"
+                f"(当前共 {total} 条绑定)"
+            )
         binding = None
         if target.isdigit():
             binding = await self.store.get_by_qq(target)
@@ -103,9 +122,10 @@ class BindingModule:
     async def cmd_admin_unbind(
         self, event: AstrMessageEvent, qq: str,
     ) -> str:
-        """/强制解绑 <QQ号> - 解除任意绑定(管理员)"""
+        """/强制解绑 <QQ号|@用户> - 解除任意绑定(管理员)"""
+        qq = _target_from_event(event, qq)
         if not qq:
-            return "[绑定] 用法: /强制解绑 <QQ号>"
+            return "[绑定] 用法: /强制解绑 <QQ号|@用户>"
         removed = await self.store.delete_by_qq(qq)
         if not removed:
             return f"[绑定] QQ {qq} 没有绑定记录"
@@ -221,7 +241,7 @@ class BindingModule:
         chain = MessageChain().at(name=user_id, qq=user_id)
         if binding:
             shown = binding.player_name or binding.nickname or "玩家"
-            chain.message(f" 欢迎回来,{shown}!")
+            chain.message(f" 欢迎回来,{shown}喵~")
             if binding.player_name:
                 await self._set_group_card(
                     getattr(event, "bot", None),
@@ -229,8 +249,8 @@ class BindingModule:
                 )
         else:
             chain.message(
-                " 欢迎加入!本群与 MC 服务器账号互通,"
-                "发送 /绑定 获取皮肤站绑定链接(私聊我发送也可以)。"
+                " 欢迎加入!发送 /绑定 即可关联皮肤站账号"
+                "(私聊我发送也可以)喵~"
             )
         try:
             await event.send(chain)

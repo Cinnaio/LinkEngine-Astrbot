@@ -14,32 +14,53 @@ _PAGE = """<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>{title} - MC 账号绑定</title>
+<title>账号绑定 | 群隙 ClusterGap</title>
 <style>
-  body {{
+  body {
     margin: 0; min-height: 100vh; display: flex;
     align-items: center; justify-content: center;
-    background: #1e1f22; color: #e3e5e8;
+    background: radial-gradient(120% 120% at 20% 0%,
+                #2b2f4a 0%, #191b24 55%, #101014 100%);
+    color: #e8eaf0;
     font-family: system-ui, "Segoe UI", "PingFang SC",
                  "Microsoft YaHei", sans-serif;
-  }}
-  .card {{
-    max-width: 26rem; margin: 1rem; padding: 2.5rem 2rem;
-    background: #2b2d31; border-radius: 12px; text-align: center;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, .4);
-  }}
-  .icon {{ font-size: 3rem; }}
-  h1 {{ font-size: 1.25rem; margin: 1rem 0 .5rem; }}
-  p {{ margin: .25rem 0; color: #b5bac1; line-height: 1.6; }}
-  .hint {{ margin-top: 1.5rem; font-size: .8rem; color: #80848e; }}
+  }
+  .card {
+    width: min(92vw, 26rem); margin: 1rem;
+    padding: 2.75rem 2.25rem 2.25rem;
+    background: rgba(43, 45, 55, .85);
+    border: 1px solid rgba(255, 255, 255, .06);
+    border-radius: 16px; text-align: center;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, .45);
+  }
+  .logo {
+    width: 64px; height: 64px;
+    border-radius: 14px; object-fit: cover;
+  }
+  .brand {
+    margin: .6rem 0 1.4rem; font-size: .95rem;
+    letter-spacing: .04em; color: #9aa0b4;
+  }
+  .status { font-size: 2.4rem; line-height: 1; }
+  h1 { font-size: 1.3rem; margin: .8rem 0 .5rem; }
+  h1.ok { color: #7ee2a8; }
+  h1.err { color: #ff9a9a; }
+  p {
+    margin: .3rem 0; color: #b9bfd0;
+    line-height: 1.7; font-size: .95rem;
+  }
+  .hint { margin-top: 1.8rem; font-size: .78rem; color: #767c90; }
 </style>
 </head>
 <body>
 <div class="card">
-  <div class="icon">{icon}</div>
-  <h1>{title}</h1>
-  <p>{detail}</p>
-  <p class="hint">本页面无需保留,可直接关闭返回 QQ。</p>
+  <img class="logo" src="https://mscraft.uk/images/logo.png"
+       alt="ClusterGap" onerror="this.style.display='none'">
+  <div class="brand">账号绑定 | 群隙 ClusterGap</div>
+  <div class="status">__ICON__</div>
+  <h1 class="__STATE__">__TITLE__</h1>
+  <p>__DETAIL__</p>
+  <p class="hint">可直接关闭本页面返回 QQ 喵~</p>
 </div>
 </body>
 </html>"""
@@ -77,10 +98,12 @@ class CallbackServer:
         code = request.query.get("code", "")
         error = request.query.get("error", "")
         ok, title, detail = await self._handler(state, code, error)
-        page = _PAGE.format(
-            icon="✅" if ok else "❌",
-            title=html.escape(title),
-            detail=html.escape(detail),
+        page = (
+            _PAGE
+            .replace("__ICON__", "✅" if ok else "❌")
+            .replace("__STATE__", "ok" if ok else "err")
+            .replace("__TITLE__", html.escape(title))
+            .replace("__DETAIL__", html.escape(detail))
         )
         return web.Response(
             text=page,
