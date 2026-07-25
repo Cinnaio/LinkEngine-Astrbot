@@ -7,15 +7,21 @@ via the LinkEngine REST API.
 from astrbot.api.event import filter, AstrMessageEvent, MessageChain
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger, AstrBotConfig
+import asyncio
 import os
+from pathlib import Path
 
 from .core.api_client import MCBridgeClient
+from .core.binding_store import BindingStore, format_uuid
+from .core.callback_server import CallbackServer
+from .core.oidc_client import OidcClient
 from .core.permission import PermissionChecker
+from .modules.binding_commands import BindingModule
 from .modules.server_commands import ServerCommandsModule
 from .modules.husktowns_commands import HusktownsCommandsModule
 
 
-@register("astrbot_plugin_mcbridge", "Cinnaio", "LinkEngine AstrBot 插件", "1.0.1")
+@register("astrbot_plugin_mcbridge", "Cinnaio", "LinkEngine AstrBot 插件", "1.1.0")
 class LinkEnginePlugin(Star):
     """AstrBot plugin for Minecraft server management via LinkEngine API."""
 
@@ -37,8 +43,75 @@ class LinkEnginePlugin(Star):
         self.modules = []
         self._register_modules()
 
+        # 皮肤站 OIDC 账号绑定
+        data_dir = self._resolve_data_dir()
+        self.binding_store = BindingStore(data_dir / "bindings.db")
+        self.oidc = OidcClient(
+            issuer=config.get("oidc_issuer", ""),
+            client_id=config.get("oidc_client_id", ""),
+            client_secret=config.get("oidc_client_secret", ""),
+            redirect_uri=config.get("oidc_redirect_uri", ""),
+        )
+        self.binding = BindingModule(
+            store=self.binding_store,
+            oidc=self.oidc,
+            permission=self.permission,
+            context=context,
+            watch_groups=config.get("watch_groups", []),
+            auto_set_group_card=config.get("auto_set_group_card", True),
+        )
+        self.callback_server = CallbackServer(
+            host=config.get("callback_host", "0.0.0.0"),
+            port=config.get("callback_port", 8193),
+            path=self.oidc.callback_path,
+            handler=self.binding.handle_callback,
+        )
+        self._binding_started = False
+        try:
+            asyncio.get_running_loop().create_task(
+                self._ensure_binding_started()
+            )
+        except RuntimeError:
+            pass  # 尚无事件循环时由 initialize() 兜底启动
+
         logger.info(f"[LinkEngine] Plugin initialized. API: {self.api_url}")
         logger.info(f"[LinkEngine] Admins: {self.admins}")
+
+    @staticmethod
+    def _resolve_data_dir() -> Path:
+        try:
+            from astrbot.api.star import StarTools
+
+            return StarTools.get_data_dir("astrbot_plugin_mcbridge")
+        except Exception:
+            # 旧版 AstrBot 没有 StarTools 时退回约定路径
+            data_dir = Path("data/plugin_data/astrbot_plugin_mcbridge")
+            data_dir.mkdir(parents=True, exist_ok=True)
+            return data_dir
+
+    async def initialize(self):
+        """AstrBot 插件生命周期:异步初始化。"""
+        await self._ensure_binding_started()
+
+    async def _ensure_binding_started(self):
+        """启动 OAuth 回调服务(幂等)。"""
+        if self._binding_started:
+            return
+        self._binding_started = True
+        if not self.oidc.configured:
+            logger.warning(
+                "[LinkEngine] 未配置皮肤站 OIDC 参数,账号绑定功能不可用"
+            )
+            return
+        try:
+            await self.callback_server.start()
+            logger.info(
+                f"[LinkEngine] OAuth 回调服务已监听 "
+                f"http://{self.callback_server.host}:{self.callback_server.port}"
+                f"{self.callback_server.path}"
+            )
+        except Exception as e:
+            logger.error(f"[LinkEngine] OAuth 回调服务启动失败: {e}")
 
     def _register_modules(self):
         """Register all command modules."""
@@ -142,11 +215,17 @@ class LinkEnginePlugin(Star):
             return
 
         user_id = self._get_user_id(event)
-        uuid = self.player_bindmap.get(user_id)
+        uuid = None
+        binding = await self.binding_store.get_by_qq(user_id)
+        if binding and binding.minecraft_uuid:
+            uuid = format_uuid(binding.minecraft_uuid)
+        if not uuid:
+            # 旧版手工映射兜底
+            uuid = self.player_bindmap.get(user_id)
         if not uuid:
             await event.send(MessageChain().message(
                 "[城镇] 你还没有绑定MC账号。\n"
-                "请联系管理员在配置中添加你的 QQ号 -> MC UUID 映射。"
+                "发送 /绑定 关联你的皮肤站账号后即可使用。"
             ))
             return
         resp = await self.api_client.get_player_town(uuid)
@@ -160,6 +239,58 @@ class LinkEnginePlugin(Star):
             f"角色: {data.get('role', '未知')}\n"
             f"成员数: {town.get('memberCount', 0)}"
         ))
+
+    # ==================== 账号绑定命令 ====================
+
+    @filter.command("绑定")
+    async def cmd_bind(self, event: AstrMessageEvent):
+        """/绑定 - 获取皮肤站账号绑定链接"""
+        await self._ensure_binding_started()
+        result = await self.binding.cmd_bind(event)
+        await event.send(MessageChain().message(result))
+
+    @filter.command("解绑")
+    async def cmd_unbind(self, event: AstrMessageEvent):
+        """/解绑 - 解除自己的皮肤站账号绑定"""
+        result = await self.binding.cmd_unbind(event)
+        await event.send(MessageChain().message(result))
+
+    @filter.command("我的绑定")
+    async def cmd_my_bind(self, event: AstrMessageEvent):
+        """/我的绑定 - 查看自己的绑定信息"""
+        result = await self.binding.cmd_bind_info(event)
+        await event.send(MessageChain().message(result))
+
+    @filter.command("查绑定")
+    async def cmd_bind_query(self, event: AstrMessageEvent, target: str = ""):
+        """/查绑定 <QQ号|玩家名> - 查询绑定 (管理员)"""
+        if not self._check_admin(event):
+            await event.send(MessageChain().message("[绑定] 权限不足,此命令仅管理员可用"))
+            return
+        result = await self.binding.cmd_admin_query(event, target)
+        await event.send(MessageChain().message(result))
+
+    @filter.command("强制解绑")
+    async def cmd_force_unbind(self, event: AstrMessageEvent, qq: str = ""):
+        """/强制解绑 <QQ号> - 解除任意绑定 (管理员)"""
+        if not self._check_admin(event):
+            await event.send(MessageChain().message("[绑定] 权限不足,此命令仅管理员可用"))
+            return
+        result = await self.binding.cmd_admin_unbind(event, qq)
+        await event.send(MessageChain().message(result))
+
+    @filter.event_message_type(filter.EventMessageType.ALL)
+    async def on_notice_event(self, event: AstrMessageEvent):
+        """监听 OneBot notice 事件:入群欢迎与绑定引导"""
+        raw = getattr(event.message_obj, "raw_message", None)
+        if (
+            not isinstance(raw, dict)
+            or raw.get("post_type") != "notice"
+            or raw.get("notice_type") != "group_increase"
+        ):
+            return
+        await self._ensure_binding_started()
+        await self.binding.on_group_increase(event)
 
     # ==================== 帮助命令 ====================
 
@@ -182,12 +313,19 @@ class LinkEnginePlugin(Star):
                 "  /城镇列表 - 查看所有城镇\n"
                 "  /查城镇 <城镇名> - 城镇详细信息\n"
                 "  /查成员 <城镇名> - 城镇成员列表\n"
-                "  /我的城镇 - 查看自己所在城镇"
+                "  /我的城镇 - 查看自己所在城镇\n"
+                "\n"
+                "账号绑定:\n"
+                "  /绑定 - 绑定皮肤站账号\n"
+                "  /解绑 - 解除绑定\n"
+                "  /我的绑定 - 查看绑定信息"
             ))
 
     # ==================== Lifecycle ====================
 
     async def terminate(self):
         """Cleanup on plugin unload."""
+        await self.callback_server.stop()
+        await self.oidc.close()
         await self.api_client.close()
         logger.info("[LinkEngine] Plugin terminated, API client closed.")

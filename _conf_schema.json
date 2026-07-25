@@ -20,10 +20,61 @@
     "default": [],
     "hint": "管理员的用户ID列表（如QQ号），可执行管理类命令"
   },
+  "oidc_issuer": {
+    "description": "皮肤站地址（OIDC Issuer）",
+    "type": "string",
+    "default": "https://skin.mscraft.uk",
+    "hint": "装有 EnderPass 插件的皮肤站根地址，不带末尾斜杠"
+  },
+  "oidc_client_id": {
+    "description": "OIDC 客户端 ID",
+    "type": "string",
+    "default": "",
+    "hint": "皮肤站「管理面板 → OAuth2 客户端」为机器人创建客户端后获得"
+  },
+  "oidc_client_secret": {
+    "description": "OIDC 客户端密钥",
+    "type": "string",
+    "default": "",
+    "hint": "与客户端 ID 一同获得，泄露后请在皮肤站重置"
+  },
+  "oidc_redirect_uri": {
+    "description": "OAuth 回调地址（公网）",
+    "type": "string",
+    "default": "",
+    "hint": "用户浏览器可访问的回调地址，须与皮肤站客户端配置完全一致，如 https://bot.example.com/oidc/callback，通常由反向代理转发到下面的监听端口"
+  },
+  "callback_host": {
+    "description": "回调服务监听地址",
+    "type": "string",
+    "default": "0.0.0.0",
+    "hint": "本地监听地址；Docker 部署请保持 0.0.0.0，裸机可改 127.0.0.1"
+  },
+  "callback_port": {
+    "description": "回调服务监听端口",
+    "type": "int",
+    "default": 8193,
+    "hint": "反向代理应把回调地址转发到 该地址:端口"
+  },
+  "watch_groups": {
+    "description": "启用入群欢迎的群号",
+    "type": "list",
+    "items": {
+      "type": "string"
+    },
+    "default": [],
+    "hint": "入群时自动欢迎/引导绑定的群号列表，留空表示所有群生效"
+  },
+  "auto_set_group_card": {
+    "description": "绑定后自动设置群名片",
+    "type": "bool",
+    "default": true,
+    "hint": "绑定成功或已绑定玩家入群时，把群名片改为 MC 角色名（需要机器人有群管理权限）"
+  },
   "player_bindmap": {
-    "description": "玩家绑定映射",
+    "description": "玩家绑定映射（旧版遗留）",
     "type": "object", "items": {},
     "default": {},
-    "hint": "用户ID到MC UUID的映射，用于 /town my 等命令。格式: {\"QQ号\": \"MC-UUID\"}"
+    "hint": "旧版手工维护的 QQ号 -> MC UUID 映射，仅作兜底；现在请让玩家使用 /绑定 自助完成"
   }
 }
