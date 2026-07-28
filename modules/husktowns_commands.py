@@ -7,15 +7,6 @@ class HusktownsCommandsModule(BaseCommandModule):
     """Provides town query commands via HuskTowns API."""
 
     name = "husktowns"
-    required_api_module = "husktowns"
-
-    def get_handlers(self) -> list:
-        return [
-            ("list", self.cmd_list, False),
-            ("info", self.cmd_info, False),
-            ("members", self.cmd_members, False),
-            ("my", self.cmd_my, False),
-        ]
 
     async def cmd_list(self, args: list[str]) -> str:
         """查看所有城镇列表"""
@@ -85,10 +76,5 @@ class HusktownsCommandsModule(BaseCommandModule):
             online = "在线" if m.get("online") else "离线"
             lines.append(f"  {m.get('name', '?')} [{m.get('role', 'Member')}] ({online})")
         return "\n".join(lines)
-
-    async def cmd_my(self, args: list[str]) -> str:
-        """查看自己所在城镇: /我的城镇 (需要绑定MC账号)"""
-        # This requires player binding - handled in main.py
-        return "[城镇] 请联系管理员绑定 QQ号 -> MC UUID 映射后再使用此命令"
 
 

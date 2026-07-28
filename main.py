@@ -174,6 +174,32 @@ class LinkEnginePlugin(Star):
         result = await server_module.cmd_player(args)
         await event.send(MessageChain().message(result))
 
+    @filter.command("余额榜")
+    async def cmd_baltop(self, event: AstrMessageEvent, count: str = ""):
+        """/余额榜 [数量] - 查看余额排行榜"""
+        server_module = next((m for m in self.modules if m.name == "server"), None)
+        if not server_module:
+            await event.send(MessageChain().message("[MC] 服务器模块未加载"))
+            return
+        args = [count] if count else []
+        result = await server_module.cmd_baltop(args)
+        await event.send(MessageChain().message(result))
+
+    @filter.command("广播")
+    async def cmd_broadcast(self, event: AstrMessageEvent):
+        """/广播 <内容> - 广播消息到服务器（管理员）"""
+        if not self._check_admin(event):
+            await event.send(MessageChain().message("[MC] 权限不足，此命令仅管理员可用"))
+            return
+        server_module = next((m for m in self.modules if m.name == "server"), None)
+        if not server_module:
+            await event.send(MessageChain().message("[MC] 服务器模块未加载"))
+            return
+        # 取「广播」之后的整段原文，避免内容里的空格被逐参数拆分
+        message = self._command_rest(event, "广播")
+        result = await server_module.cmd_broadcast([message] if message else [])
+        await event.send(MessageChain().message(result))
+
     # ==================== 城镇命令 ====================
 
     @filter.command("城镇列表")
@@ -324,7 +350,9 @@ class LinkEnginePlugin(Star):
                 "MC服务器:\n"
                 "  /查服 - 服务器状态 + 在线玩家\n"
                 "  /玩家 或 /在线 - 在线玩家详细列表\n"
-                "  /查 <玩家名> - 查询指定玩家信息\n"
+                "  /查 <玩家名> - 查询玩家信息（离线也能查）\n"
+                "  /余额榜 [数量] - 余额排行榜\n"
+                "  /广播 <内容> - 广播到服务器（管理员）\n"
                 "\n"
                 "HuskTowns 城镇:\n"
                 "  /城镇列表 - 查看所有城镇\n"

@@ -79,6 +79,20 @@ class MCBridgeClient:
     async def get_plugins(self) -> dict:
         return await self.get("/api/server/plugins")
 
+    # ---- Essentials API（读插件存储，离线玩家也能查）----
+
+    async def get_player_profile(self, name: str) -> dict:
+        """玩家档案：余额、游戏时长、封禁状态等，离线也能查。"""
+        return await self.get(f"/api/essentials/players/{name}")
+
+    async def get_economy_top(self, limit: int = 10) -> dict:
+        """余额排行榜，返回 {玩家名: 余额}。"""
+        return await self.get(f"/api/essentials/economy/top?limit={limit}")
+
+    async def broadcast(self, message: str) -> dict:
+        """向服务器全体在线玩家广播一条消息。"""
+        return await self.post("/api/essentials/broadcast", {"message": message})
+
     # ---- HuskTowns API ----
 
     async def get_towns(self) -> dict:
