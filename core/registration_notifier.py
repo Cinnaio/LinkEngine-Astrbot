@@ -110,12 +110,13 @@ class RegistrationNotifier:
         nickname = str(user.get("nickname") or "未设置昵称")
         uid = str(user.get("uid") or "未知")
         lines = [
-            "[注册通知] 新玩家已注册皮肤站账号",
-            f"玩家: {nickname}",
-            f"UID: {uid}",
+            "新玩家已注册皮肤站账号，注意查收！",
+            "",
+            f"玩家: {nickname}（UID：{uid}）",
         ]
         invitation = payload.get("invitation") or {}
         inviter = invitation.get("inviter_uid")
         if inviter:
-            lines.append(f"邀请人 UID: {inviter}")
+            inviter_nickname = str(invitation.get("inviter_nickname") or "未设置昵称")
+            lines.append(f"邀请人: {inviter_nickname}（UID：{inviter}）")
         return "\n".join(lines)
