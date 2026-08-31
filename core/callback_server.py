@@ -9,6 +9,7 @@ from aiohttp import web
 
 # handler(state, code, error) -> (ok, title, detail)
 CallbackHandler = Callable[[str, str, str], Awaitable[tuple[bool, str, str]]]
+RegistrationHandler = Callable[[bytes, str], Awaitable[bool]]
 
 # 本地 logo 缺失/读取失败时的兜底
 _REMOTE_LOGO = "https://mscraft.uk/images/logo.png"
@@ -90,7 +91,9 @@ _PAGE = """<!doctype html>
 class CallbackServer:
     def __init__(self, host: str, port: int, path: str,
                  handler: CallbackHandler,
-                 logo_path: Optional[Path] = None):
+                 logo_path: Optional[Path] = None,
+                 registration_path: str = "/enderpass/registration",
+                 registration_handler: Optional[RegistrationHandler] = None):
         self.host = host
         self.port = int(port)
         self.path = path if path.startswith("/") else f"/{path}"
@@ -98,6 +101,14 @@ class CallbackServer:
         self._logo_path = logo_path
         self._logo_uri: Optional[str] = None
         self._runner: Optional[web.AppRunner] = None
+        registration_path = str(registration_path or "").strip()
+        if not registration_path:
+            registration_path = "/enderpass/registration"
+        self.registration_path = (
+            registration_path if registration_path.startswith("/")
+            else f"/{registration_path}"
+        )
+        self._registration_handler = registration_handler
 
     def _logo_data_uri(self) -> str:
         """本地 logo 转 data URI(懒加载缓存),favicon 与卡片图共用。"""
@@ -122,6 +133,8 @@ class CallbackServer:
     async def start(self):
         app = web.Application()
         app.router.add_get(self.path, self._handle)
+        if self._registration_handler:
+            app.router.add_post(self.registration_path, self._handle_registration)
         runner = web.AppRunner(app, access_log=None)
         await runner.setup()
         site = web.TCPSite(runner, self.host, self.port)
@@ -151,4 +164,12 @@ class CallbackServer:
             content_type="text/html",
             charset="utf-8",
             status=200 if ok else 400,
+        )
+
+    async def _handle_registration(self, request: web.Request) -> web.Response:
+        body = await request.read()
+        signature = request.headers.get("X-EnderPass-Signature", "")
+        accepted = await self._registration_handler(body, signature)
+        return web.json_response(
+            {"ok": accepted}, status=200 if accepted else 401
         )

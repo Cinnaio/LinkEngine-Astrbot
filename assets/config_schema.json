@@ -25,5 +25,26 @@
     "type": "dict",
     "default": {},
     "hint": "用户ID到MC UUID的映射，用于 /town my 等命令。格式: {\"QQ号\": \"MC-UUID\"}"
+  },
+  "registration_webhook_path": {
+    "description": "EnderPass 注册通知路径",
+    "type": "string",
+    "default": "/enderpass/registration",
+    "hint": "与 EnderPass 配置的 Webhook URL 路径一致，复用 OAuth 回调服务端口"
+  },
+  "registration_webhook_secret": {
+    "description": "EnderPass 注册通知密钥",
+    "type": "string",
+    "default": "",
+    "hint": "与皮肤站 EnderPass 的 astrbot_webhook_secret 保持一致"
+  },
+  "registration_notify_groups": {
+    "description": "注册通知群号",
+    "type": "list",
+    "items": {
+      "type": "string"
+    },
+    "default": [],
+    "hint": "收到新玩家注册后发送通知的群号列表；留空表示只记录不发送"
   }
 }

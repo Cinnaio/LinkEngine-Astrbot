@@ -17,12 +17,13 @@ from .core.binding_store import BindingStore, format_uuid
 from .core.callback_server import CallbackServer
 from .core.oidc_client import OidcClient
 from .core.permission import PermissionChecker
+from .core.registration_notifier import RegistrationNotifier
 from .modules.binding_commands import BindingModule
 from .modules.server_commands import ServerCommandsModule
 from .modules.husktowns_commands import HusktownsCommandsModule
 
 
-@register("astrbot_plugin_mcbridge", "Cinnaio", "LinkEngine AstrBot 插件", "1.2.3")
+@register("astrbot_plugin_mcbridge", "Cinnaio", "LinkEngine AstrBot 插件", "1.5.0")
 class LinkEnginePlugin(Star):
     """AstrBot plugin for Minecraft server management via LinkEngine API."""
 
@@ -53,6 +54,10 @@ class LinkEnginePlugin(Star):
             client_secret=config.get("oidc_client_secret", ""),
             redirect_uri=config.get("oidc_redirect_uri", ""),
         )
+        self.registration_notifier = RegistrationNotifier(
+            secret=config.get("registration_webhook_secret", ""),
+            groups=config.get("registration_notify_groups", []),
+        )
         self.binding = BindingModule(
             store=self.binding_store,
             oidc=self.oidc,
@@ -67,6 +72,10 @@ class LinkEnginePlugin(Star):
             path=self.oidc.callback_path,
             handler=self.binding.handle_callback,
             logo_path=Path(__file__).parent / "assets" / "logo.png",
+            registration_path=config.get(
+                "registration_webhook_path", "/enderpass/registration"
+            ),
+            registration_handler=self.registration_notifier.handle,
         )
         self._binding_started = False
         try:
@@ -100,9 +109,9 @@ class LinkEnginePlugin(Star):
         if self._binding_started:
             return
         self._binding_started = True
-        if not self.oidc.configured:
+        if not self.oidc.configured and not self.registration_notifier.configured:
             logger.warning(
-                "[LinkEngine] 未配置皮肤站 OIDC 参数,账号绑定功能不可用"
+                "[LinkEngine] 未配置皮肤站 OIDC 或 EnderPass 通知参数,相关功能不可用"
             )
             return
         try:
@@ -325,6 +334,7 @@ class LinkEnginePlugin(Star):
     @filter.event_message_type(filter.EventMessageType.ALL)
     async def on_notice_event(self, event: AstrMessageEvent):
         """监听 OneBot notice 事件:入群欢迎与绑定引导"""
+        self.registration_notifier.remember_bot(getattr(event, "bot", None))
         raw = getattr(event.message_obj, "raw_message", None)
         if (
             not isinstance(raw, dict)
