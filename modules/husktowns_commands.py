@@ -12,11 +12,11 @@ class HusktownsCommandsModule(BaseCommandModule):
         """查看所有城镇列表"""
         resp = await self.api.get_towns()
         if not resp.get("success"):
-            return f"[城镇] {resp.get('message', '获取城镇列表失败')}"
+            return f"{resp.get('message', '获取城镇列表失败')}"
 
         towns = resp.get("data", [])
         if not towns:
-            return "[城镇] 当前没有城镇"
+            return "当前没有城镇"
 
         lines = [f"城镇列表 ({len(towns)})"]
         for t in towns:
@@ -30,12 +30,12 @@ class HusktownsCommandsModule(BaseCommandModule):
     async def cmd_info(self, args: list[str]) -> str:
         """查看城镇信息: /查城镇 <城镇名>"""
         if not args:
-            return "[城镇] 用法: /查城镇 <城镇名>"
+            return "用法: /查城镇 <城镇名>"
 
         name = args[0]
         resp = await self.api.get_town(name)
         if not resp.get("success"):
-            return f"[城镇] {resp.get('message', '查询失败')}"
+            return f"{resp.get('message', '查询失败')}"
 
         data = resp.get("data", {})
         members = data.get("members", [])
@@ -60,21 +60,20 @@ class HusktownsCommandsModule(BaseCommandModule):
     async def cmd_members(self, args: list[str]) -> str:
         """查看城镇成员: /查成员 <城镇名>"""
         if not args:
-            return "[城镇] 用法: /查成员 <城镇名>"
+            return "用法: /查成员 <城镇名>"
 
         name = args[0]
         resp = await self.api.get_town_members(name)
         if not resp.get("success"):
-            return f"[城镇] {resp.get('message', '查询失败')}"
+            return f"{resp.get('message', '查询失败')}"
 
         members = resp.get("data", [])
         if not members:
-            return f"[城镇] {name} 没有成员"
+            return f"{name} 没有成员"
 
         lines = [f"{name} 成员 ({len(members)})"]
         for m in members:
             online = "在线" if m.get("online") else "离线"
             lines.append(f"  {m.get('name', '?')} [{m.get('role', 'Member')}] ({online})")
         return "\n".join(lines)
-
 

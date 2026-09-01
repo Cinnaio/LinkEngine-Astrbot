@@ -12,7 +12,7 @@ class ServerCommandsModule(BaseCommandModule):
         """查看服务器状态（含在线玩家）"""
         resp = await self.api.get_server_status()
         if not resp.get("success"):
-            return f"[MC] {resp.get('message', '获取状态失败')}"
+            return f"{resp.get('message', '获取状态失败')}"
 
         data = resp.get("data", {})
         tps = data.get("tps", {})
@@ -42,11 +42,11 @@ class ServerCommandsModule(BaseCommandModule):
         """查看在线玩家列表（详细）"""
         resp = await self.api.get_online_players()
         if not resp.get("success"):
-            return f"[MC] {resp.get('message', '获取玩家列表失败')}"
+            return f"{resp.get('message', '获取玩家列表失败')}"
 
         players = resp.get("data", [])
         if not players:
-            return "[MC] 当前没有玩家在线"
+            return "当前没有玩家在线"
 
         lines = [f"在线玩家 ({len(players)})"]
         for p in players:
@@ -64,12 +64,12 @@ class ServerCommandsModule(BaseCommandModule):
         玩家在线时再补上实时的位置、血量等运行时状态。
         """
         if not args:
-            return "[MC] 用法: /查 <玩家名>"
+            return "用法: /查 <玩家名>"
 
         name = args[0]
         profile_resp = await self.api.get_player_profile(name)
         if not profile_resp.get("success"):
-            return f"[MC] {profile_resp.get('message', '查询失败')}"
+            return f"{profile_resp.get('message', '查询失败')}"
 
         data = profile_resp.get("data", {})
         online = data.get("online", False)
@@ -115,15 +115,15 @@ class ServerCommandsModule(BaseCommandModule):
             try:
                 limit = max(1, min(50, int(args[0])))
             except ValueError:
-                return "[MC] 用法: /余额榜 [数量]（数量为 1-50 的整数）"
+                return "用法: /余额榜 [数量]（数量为 1-50 的整数）"
 
         resp = await self.api.get_economy_top(limit)
         if not resp.get("success"):
-            return f"[MC] {resp.get('message', '获取排行榜失败')}"
+            return f"{resp.get('message', '获取排行榜失败')}"
 
         data = resp.get("data", {}) or {}
         if not data:
-            return "[MC] 暂无余额数据"
+            return "暂无余额数据"
 
         lines = [f"余额排行榜 (前 {len(data)})"]
         for rank, (name, balance) in enumerate(data.items(), start=1):
@@ -134,12 +134,12 @@ class ServerCommandsModule(BaseCommandModule):
         """向服务器广播: /广播 <内容>（管理员）"""
         message = " ".join(args).strip()
         if not message:
-            return "[MC] 用法: /广播 <内容>"
+            return "用法: /广播 <内容>"
 
         resp = await self.api.broadcast(message)
         if not resp.get("success"):
-            return f"[MC] {resp.get('message', '广播失败')}"
-        return f"[MC] 已广播: {message}"
+            return f"{resp.get('message', '广播失败')}"
+        return f"已广播: {message}"
 
     @staticmethod
     def _format_playtime(millis: int) -> str:
@@ -157,4 +157,3 @@ class ServerCommandsModule(BaseCommandModule):
         if minutes or not parts:
             parts.append(f"{minutes}分钟")
         return "".join(parts)
-

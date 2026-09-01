@@ -23,7 +23,7 @@ from .modules.server_commands import ServerCommandsModule
 from .modules.husktowns_commands import HusktownsCommandsModule
 
 
-@register("astrbot_plugin_mcbridge", "Cinnaio", "LinkEngine AstrBot 插件", "1.6.0")
+@register("astrbot_plugin_mcbridge", "Cinnaio", "LinkEngine AstrBot 插件", "1.6.1")
 class LinkEnginePlugin(Star):
     """AstrBot plugin for Minecraft server management via LinkEngine API."""
 
@@ -147,7 +147,7 @@ class LinkEnginePlugin(Star):
         """/查服 - 查看服务器状态 + 在线玩家"""
         server_module = next((m for m in self.modules if m.name == "server"), None)
         if not server_module:
-            await event.send(MessageChain().message("[MC] 服务器模块未加载"))
+            await event.send(MessageChain().message("服务器模块未加载"))
             return
         result = await server_module.cmd_status([])
         await event.send(MessageChain().message(result))
@@ -157,7 +157,7 @@ class LinkEnginePlugin(Star):
         """/玩家 - 在线玩家详细列表"""
         server_module = next((m for m in self.modules if m.name == "server"), None)
         if not server_module:
-            await event.send(MessageChain().message("[MC] 服务器模块未加载"))
+            await event.send(MessageChain().message("服务器模块未加载"))
             return
         result = await server_module.cmd_players([])
         await event.send(MessageChain().message(result))
@@ -167,7 +167,7 @@ class LinkEnginePlugin(Star):
         """/在线 - 在线玩家详细列表"""
         server_module = next((m for m in self.modules if m.name == "server"), None)
         if not server_module:
-            await event.send(MessageChain().message("[MC] 服务器模块未加载"))
+            await event.send(MessageChain().message("服务器模块未加载"))
             return
         result = await server_module.cmd_players([])
         await event.send(MessageChain().message(result))
@@ -177,7 +177,7 @@ class LinkEnginePlugin(Star):
         """/查 <玩家名> - 查询指定玩家信息"""
         server_module = next((m for m in self.modules if m.name == "server"), None)
         if not server_module:
-            await event.send(MessageChain().message("[MC] 服务器模块未加载"))
+            await event.send(MessageChain().message("服务器模块未加载"))
             return
         args = [name] if name else []
         result = await server_module.cmd_player(args)
@@ -188,7 +188,7 @@ class LinkEnginePlugin(Star):
         """/余额榜 [数量] - 查看余额排行榜"""
         server_module = next((m for m in self.modules if m.name == "server"), None)
         if not server_module:
-            await event.send(MessageChain().message("[MC] 服务器模块未加载"))
+            await event.send(MessageChain().message("服务器模块未加载"))
             return
         args = [count] if count else []
         result = await server_module.cmd_baltop(args)
@@ -198,11 +198,11 @@ class LinkEnginePlugin(Star):
     async def cmd_broadcast(self, event: AstrMessageEvent):
         """/广播 <内容> - 广播消息到服务器（管理员）"""
         if not self._check_admin(event):
-            await event.send(MessageChain().message("[MC] 权限不足，此命令仅管理员可用"))
+            await event.send(MessageChain().message("权限不足，此命令仅管理员可用"))
             return
         server_module = next((m for m in self.modules if m.name == "server"), None)
         if not server_module:
-            await event.send(MessageChain().message("[MC] 服务器模块未加载"))
+            await event.send(MessageChain().message("服务器模块未加载"))
             return
         # 取「广播」之后的整段原文，避免内容里的空格被逐参数拆分
         message = self._command_rest(event, "广播")
@@ -216,7 +216,7 @@ class LinkEnginePlugin(Star):
         """/城镇列表 - 查看所有城镇"""
         town_module = next((m for m in self.modules if m.name == "husktowns"), None)
         if not town_module:
-            await event.send(MessageChain().message("[城镇] HuskTowns 模块未加载"))
+            await event.send(MessageChain().message("HuskTowns 模块未加载"))
             return
         result = await town_module.cmd_list([])
         await event.send(MessageChain().message(result))
@@ -226,7 +226,7 @@ class LinkEnginePlugin(Star):
         """/查城镇 <城镇名> - 查看城镇详细信息"""
         town_module = next((m for m in self.modules if m.name == "husktowns"), None)
         if not town_module:
-            await event.send(MessageChain().message("[城镇] HuskTowns 模块未加载"))
+            await event.send(MessageChain().message("HuskTowns 模块未加载"))
             return
         args = [name] if name else []
         result = await town_module.cmd_info(args)
@@ -237,7 +237,7 @@ class LinkEnginePlugin(Star):
         """/查成员 <城镇名> - 查看城镇成员列表"""
         town_module = next((m for m in self.modules if m.name == "husktowns"), None)
         if not town_module:
-            await event.send(MessageChain().message("[城镇] HuskTowns 模块未加载"))
+            await event.send(MessageChain().message("HuskTowns 模块未加载"))
             return
         args = [name] if name else []
         result = await town_module.cmd_members(args)
@@ -248,7 +248,7 @@ class LinkEnginePlugin(Star):
         """/我的城镇 - 查看自己所在城镇（需绑定）"""
         town_module = next((m for m in self.modules if m.name == "husktowns"), None)
         if not town_module:
-            await event.send(MessageChain().message("[城镇] HuskTowns 模块未加载"))
+            await event.send(MessageChain().message("HuskTowns 模块未加载"))
             return
 
         user_id = self._get_user_id(event)
@@ -261,18 +261,18 @@ class LinkEnginePlugin(Star):
             uuid = self.player_bindmap.get(user_id)
         if not uuid:
             await event.send(MessageChain().message(
-                "[城镇] 你还没有绑定MC账号。\n"
+                "你还没有绑定MC账号。\n"
                 "发送 /绑定 关联你的皮肤站账号后即可使用。"
             ))
             return
         resp = await self.api_client.get_player_town(uuid)
         if not resp.get("success"):
-            await event.send(MessageChain().message(f"[城镇] {resp.get('message', '查询失败')}"))
+            await event.send(MessageChain().message(f"{resp.get('message', '查询失败')}"))
             return
         data = resp.get("data", {})
         town = data.get("town", {})
         await event.send(MessageChain().message(
-            f"[城镇] 你所在的城镇: {town.get('name', '未知')}\n"
+            f"你所在的城镇: {town.get('name', '未知')}\n"
             f"角色: {data.get('role', '未知')}\n"
             f"成员数: {town.get('memberCount', 0)}"
         ))
@@ -315,7 +315,7 @@ class LinkEnginePlugin(Star):
     async def cmd_bind_query(self, event: AstrMessageEvent):
         """/查绑定 <QQ号|玩家名|@用户> - 查询绑定 (管理员)"""
         if not self._check_admin(event):
-            await event.send(MessageChain().message("[绑定] 权限不足,此命令仅管理员可用"))
+            await event.send(MessageChain().message("权限不足,此命令仅管理员可用"))
             return
         target = self._command_rest(event, "查绑定")
         result = await self.binding.cmd_admin_query(event, target)
@@ -325,7 +325,7 @@ class LinkEnginePlugin(Star):
     async def cmd_force_unbind(self, event: AstrMessageEvent):
         """/强制解绑 <QQ号|@用户> - 解除任意绑定 (管理员)"""
         if not self._check_admin(event):
-            await event.send(MessageChain().message("[绑定] 权限不足,此命令仅管理员可用"))
+            await event.send(MessageChain().message("权限不足,此命令仅管理员可用"))
             return
         qq = self._command_rest(event, "强制解绑")
         result = await self.binding.cmd_admin_unbind(event, qq)

@@ -61,16 +61,16 @@ class BindingModule:
     async def cmd_bind(self, event: AstrMessageEvent) -> str:
         """/绑定 - 生成本人专属的皮肤站授权链接"""
         if not self.oidc.configured:
-            return "[绑定] 管理员尚未配置皮肤站 OIDC 参数,暂时无法绑定"
+            return "管理员尚未配置皮肤站 OIDC 参数,暂时无法绑定"
 
         qq = str(event.get_sender_id())
         lines = []
         existing = await self.store.get_by_qq(qq)
         if existing:
             shown = existing.player_name or existing.nickname or existing.sub
-            lines.append(f"[绑定] 你当前已绑定「{shown}」,重新授权将覆盖旧绑定。")
+            lines.append(f"你当前已绑定「{shown}」,重新授权将覆盖旧绑定。")
         else:
-            lines.append("[绑定] 请用浏览器打开下面的链接,登录皮肤站并授权:")
+            lines.append("请用浏览器打开下面的链接,登录皮肤站并授权:")
 
         state = self.oidc.create_state(
             qq=qq,
@@ -87,16 +87,16 @@ class BindingModule:
         qq = str(event.get_sender_id())
         removed = await self.store.delete_by_qq(qq)
         if not removed:
-            return "[绑定] 你还没有绑定皮肤站账号"
+            return "你还没有绑定皮肤站账号"
         shown = removed.player_name or removed.nickname or removed.sub
-        return f"[绑定] 已解除与「{shown}」的绑定"
+        return f"已解除与「{shown}」的绑定"
 
     async def cmd_bind_info(self, event: AstrMessageEvent) -> str:
         """/我的绑定 - 查看自己的绑定信息"""
         qq = str(event.get_sender_id())
         binding = await self.store.get_by_qq(qq)
         if not binding:
-            return "[绑定] 你还没有绑定皮肤站账号,发送 /绑定 开始"
+            return "你还没有绑定皮肤站账号,发送 /绑定 开始"
         return self._format_binding(binding)
 
     async def cmd_admin_query(
@@ -107,7 +107,7 @@ class BindingModule:
         if not target:
             total = await self.store.count()
             return (
-                f"[绑定] 用法: /查绑定 <QQ号|玩家名|@用户>"
+                f"用法: /查绑定 <QQ号|玩家名|@用户>"
                 f"(当前共 {total} 条绑定)"
             )
         binding = None
@@ -116,7 +116,7 @@ class BindingModule:
         if binding is None:
             binding = await self.store.get_by_player(target)
         if binding is None:
-            return f"[绑定] 未找到 {target} 的绑定记录"
+            return f"未找到 {target} 的绑定记录"
         return self._format_binding(binding, show_qq=True)
 
     async def cmd_admin_unbind(
@@ -125,15 +125,15 @@ class BindingModule:
         """/强制解绑 <QQ号|@用户> - 解除任意绑定(管理员)"""
         qq = _target_from_event(event, qq)
         if not qq:
-            return "[绑定] 用法: /强制解绑 <QQ号|@用户>"
+            return "用法: /强制解绑 <QQ号|@用户>"
         removed = await self.store.delete_by_qq(qq)
         if not removed:
-            return f"[绑定] QQ {qq} 没有绑定记录"
+            return f"QQ {qq} 没有绑定记录"
         shown = removed.player_name or removed.nickname or removed.sub
-        return f"[绑定] 已强制解除 QQ {qq} 与「{shown}」的绑定"
+        return f"已强制解除 QQ {qq} 与「{shown}」的绑定"
 
     def _format_binding(self, b: Binding, show_qq: bool = False) -> str:
-        lines = ["[绑定] 绑定信息:"]
+        lines = ["绑定信息:"]
         if show_qq:
             lines.append(f"  QQ: {b.qq}")
         lines.append(f"  皮肤站账号: {b.nickname or '-'} (uid {b.sub})")
@@ -200,7 +200,7 @@ class BindingModule:
 
         # 回发确认到发起绑定的会话
         try:
-            note = f"[绑定] 绑定成功!{_mask_qq(pending.qq)} ↔ {shown}"
+            note = f"绑定成功!{_mask_qq(pending.qq)} ↔ {shown}"
             if replaced_other:
                 note += (
                     f"\n该皮肤站账号原先绑定的 QQ"
