@@ -6,12 +6,13 @@ from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, MessageChain
 from astrbot.api.message_components import At
 
-from ..core.binding_store import Binding, BindingStore, format_uuid
+from ..core.binding_store import Binding, BindingStore, compact_uuid, format_uuid
 from ..core.oidc_client import OidcClient, OidcError
 
 if TYPE_CHECKING:
     from astrbot.api.star import Context
 
+    from ..core.api_client import MCBridgeClient
     from ..core.permission import PermissionChecker
 
 
@@ -52,6 +53,7 @@ class BindingModule:
         self,
         store: BindingStore,
         oidc: OidcClient,
+        api: "MCBridgeClient",
         permission: "PermissionChecker",
         context: "Context",
         watch_groups: Optional[list] = None,
@@ -59,6 +61,7 @@ class BindingModule:
     ):
         self.store = store
         self.oidc = oidc
+        self.api = api
         self.permission = permission
         self.context = context
         self.watch_groups = [str(g) for g in (watch_groups or [])]
@@ -146,9 +149,37 @@ class BindingModule:
             lines.append(f"  QQ: {b.qq}")
         lines.append(f"  皮肤站账号: {b.nickname or '-'} (uid {b.sub})")
         lines.append(f"  角色名: {b.player_name or '-'}")
-        lines.append(f"  游戏 UUID: {format_uuid(b.minecraft_uuid) or '-'}")
+        lines.append(f"  皮肤站 UUID: {format_uuid(b.minecraft_uuid) or '-'}")
+        lines.append(f"  服务器 UUID: {format_uuid(b.server_uuid) or '未同步'}")
         lines.append(f"  绑定时间: {b.bound_at}")
         return "\n".join(lines)
+
+    async def _fetch_server_uuid(self, player_name: str) -> str:
+        """按玩家名从服务器档案中取得实际运行时 UUID。"""
+        if not player_name:
+            return ""
+        response = await self.api.get_player_profile(player_name)
+        if not response.get("success"):
+            logger.debug(
+                f"[绑定] 暂时无法解析服务器 UUID: {player_name}"
+                f" ({response.get('message', '服务器档案不可用')})"
+            )
+            return ""
+        data = response.get("data") or {}
+        if not isinstance(data, dict):
+            return ""
+        return compact_uuid(data.get("uuid", ""))
+
+    async def sync_server_uuid(self, binding: Binding) -> str:
+        """刷新绑定对应的服务器 UUID；失败时保留已有映射。"""
+        stored = compact_uuid(binding.server_uuid)
+        resolved = await self._fetch_server_uuid(binding.player_name)
+        if not resolved:
+            return stored
+        if resolved != stored:
+            await self.store.update_server_uuid(binding.qq, resolved)
+        binding.server_uuid = resolved
+        return resolved
 
     # ==================== OAuth 回调 ====================
 
@@ -193,8 +224,9 @@ class BindingModule:
             or userinfo.get("preferred_username")
             or ""
         )
-        mc_uuid = (userinfo.get("minecraft_uuid") or "").replace("-", "").lower()
+        mc_uuid = compact_uuid(userinfo.get("minecraft_uuid", ""))
         nickname = userinfo.get("nickname") or userinfo.get("username") or ""
+        server_uuid = await self._fetch_server_uuid(player_name)
 
         binding, replaced_other = await self.store.upsert(
             qq=pending.qq,
@@ -202,6 +234,7 @@ class BindingModule:
             player_name=player_name,
             minecraft_uuid=mc_uuid,
             nickname=nickname,
+            server_uuid=server_uuid,
         )
         shown = player_name or nickname or f"uid {sub}"
         logger.info(f"[绑定] QQ {pending.qq} <-> {shown} (sub={sub}) 绑定成功")
@@ -227,6 +260,10 @@ class BindingModule:
             )
 
         detail = f"皮肤站账号「{shown}」已绑定到 QQ {_mask_qq(pending.qq)}。"
+        if binding.server_uuid:
+            detail += f"服务器身份 UUID 已同步为 {format_uuid(binding.server_uuid)}。"
+        else:
+            detail += "暂未找到服务器身份，玩家登录服务器后查询城镇时会自动同步。"
         if replaced_other:
             detail += "该账号此前绑定的其他 QQ 已被自动解绑。"
         return True, "绑定成功", detail

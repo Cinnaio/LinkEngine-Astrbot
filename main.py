@@ -23,7 +23,7 @@ from .modules.server_commands import ServerCommandsModule
 from .modules.husktowns_commands import HusktownsCommandsModule
 
 
-@register("astrbot_plugin_mcbridge", "Cinnaio", "LinkEngine AstrBot 插件", "1.7.0")
+@register("astrbot_plugin_mcbridge", "Cinnaio", "LinkEngine AstrBot 插件", "1.8.0")
 class LinkEnginePlugin(Star):
     """AstrBot plugin for Minecraft server management via LinkEngine API."""
 
@@ -61,6 +61,7 @@ class LinkEnginePlugin(Star):
         self.binding = BindingModule(
             store=self.binding_store,
             oidc=self.oidc,
+            api=self.api_client,
             permission=self.permission,
             context=context,
             watch_groups=config.get("watch_groups", []),
@@ -268,13 +269,15 @@ class LinkEnginePlugin(Star):
         is_self_target = target_id == user_id
         uuid = None
         binding = await self.binding_store.get_by_qq(target_id)
-        if binding and binding.minecraft_uuid:
-            uuid = format_uuid(binding.minecraft_uuid)
+        if binding:
+            uuid = format_uuid(await self.binding.sync_server_uuid(binding))
         if not uuid and is_self_target:
             # 旧版手工映射兜底
             uuid = self.player_bindmap.get(user_id)
         if not uuid:
-            if is_self_target:
+            if binding:
+                message = "暂未找到该账号对应的服务器身份,请先让该玩家登录服务器后重试。"
+            elif is_self_target:
                 message = (
                     "你还没有绑定MC账号。\n"
                     "发送 /绑定 关联你的皮肤站账号后即可使用。"
@@ -352,10 +355,11 @@ class LinkEnginePlugin(Star):
         binding = await self.binding_store.get_by_qq(mentioned_qq)
         if not binding:
             return "", "该用户还没有绑定MC账号。", None
-        if not binding.minecraft_uuid:
-            return "", "该用户没有可用的MC UUID。", binding
+        server_uuid = await self.binding.sync_server_uuid(binding)
+        if not server_uuid:
+            return "", "暂未找到该用户对应的服务器身份,请先让其登录服务器后重试。", binding
 
-        resp = await self.api_client.get_player_town(format_uuid(binding.minecraft_uuid))
+        resp = await self.api_client.get_player_town(format_uuid(server_uuid))
         if not resp.get("success"):
             return "", resp.get("message", "查询失败"), binding
         data = resp.get("data", {}) or {}
