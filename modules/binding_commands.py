@@ -21,8 +21,8 @@ def _mask_qq(qq: str) -> str:
     return f"{qq[:2]}****{qq[-3:]}"
 
 
-def _target_from_event(event: AstrMessageEvent, fallback: str = "") -> str:
-    """优先取消息中 @ 的用户 QQ,没有 @ 时回退到文本参数。"""
+def get_mentioned_qq(event: AstrMessageEvent) -> str:
+    """获取消息中第一个有效的 @ 用户 QQ,忽略 @全体与机器人自身。"""
     try:
         self_id = str(event.get_self_id())
         for comp in event.message_obj.message:
@@ -32,6 +32,14 @@ def _target_from_event(event: AstrMessageEvent, fallback: str = "") -> str:
                     return qq
     except Exception:
         pass
+    return ""
+
+
+def _target_from_event(event: AstrMessageEvent, fallback: str = "") -> str:
+    """优先取消息中 @ 的用户 QQ,没有 @ 时回退到文本参数。"""
+    mentioned_qq = get_mentioned_qq(event)
+    if mentioned_qq:
+        return mentioned_qq
     return (fallback or "").strip()
 
 

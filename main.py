@@ -18,12 +18,12 @@ from .core.callback_server import CallbackServer
 from .core.oidc_client import OidcClient
 from .core.permission import PermissionChecker
 from .core.registration_notifier import RegistrationNotifier
-from .modules.binding_commands import BindingModule
+from .modules.binding_commands import BindingModule, get_mentioned_qq
 from .modules.server_commands import ServerCommandsModule
 from .modules.husktowns_commands import HusktownsCommandsModule
 
 
-@register("astrbot_plugin_mcbridge", "Cinnaio", "LinkEngine AstrBot 插件", "1.6.1")
+@register("astrbot_plugin_mcbridge", "Cinnaio", "LinkEngine AstrBot 插件", "1.7.0")
 class LinkEnginePlugin(Star):
     """AstrBot plugin for Minecraft server management via LinkEngine API."""
 
@@ -173,11 +173,15 @@ class LinkEnginePlugin(Star):
         await event.send(MessageChain().message(result))
 
     @filter.command("查")
-    async def cmd_player(self, event: AstrMessageEvent, name: str = ""):
-        """/查 <玩家名> - 查询指定玩家信息"""
+    async def cmd_player(self, event: AstrMessageEvent):
+        """/查 <玩家名|@用户> - 查询指定玩家信息"""
         server_module = next((m for m in self.modules if m.name == "server"), None)
         if not server_module:
             await event.send(MessageChain().message("服务器模块未加载"))
+            return
+        name, error = await self._resolve_player_argument(event, "查")
+        if error:
+            await event.send(MessageChain().message(error))
             return
         args = [name] if name else []
         result = await server_module.cmd_player(args)
@@ -222,22 +226,30 @@ class LinkEnginePlugin(Star):
         await event.send(MessageChain().message(result))
 
     @filter.command("查城镇")
-    async def cmd_town_info(self, event: AstrMessageEvent, name: str = ""):
-        """/查城镇 <城镇名> - 查看城镇详细信息"""
+    async def cmd_town_info(self, event: AstrMessageEvent):
+        """/查城镇 <城镇名|@用户> - 查看城镇详细信息"""
         town_module = next((m for m in self.modules if m.name == "husktowns"), None)
         if not town_module:
             await event.send(MessageChain().message("HuskTowns 模块未加载"))
+            return
+        name, error, _ = await self._resolve_town_argument(event, "查城镇")
+        if error:
+            await event.send(MessageChain().message(error))
             return
         args = [name] if name else []
         result = await town_module.cmd_info(args)
         await event.send(MessageChain().message(result))
 
     @filter.command("查成员")
-    async def cmd_town_members(self, event: AstrMessageEvent, name: str = ""):
-        """/查成员 <城镇名> - 查看城镇成员列表"""
+    async def cmd_town_members(self, event: AstrMessageEvent):
+        """/查成员 <城镇名|@用户> - 查看城镇成员列表"""
         town_module = next((m for m in self.modules if m.name == "husktowns"), None)
         if not town_module:
             await event.send(MessageChain().message("HuskTowns 模块未加载"))
+            return
+        name, error, _ = await self._resolve_town_argument(event, "查成员")
+        if error:
+            await event.send(MessageChain().message(error))
             return
         args = [name] if name else []
         result = await town_module.cmd_members(args)
@@ -245,25 +257,31 @@ class LinkEnginePlugin(Star):
 
     @filter.command("我的城镇")
     async def cmd_my_town(self, event: AstrMessageEvent):
-        """/我的城镇 - 查看自己所在城镇（需绑定）"""
+        """/我的城镇 [@用户] - 查看自己或指定用户所在城镇（需绑定）"""
         town_module = next((m for m in self.modules if m.name == "husktowns"), None)
         if not town_module:
             await event.send(MessageChain().message("HuskTowns 模块未加载"))
             return
 
         user_id = self._get_user_id(event)
+        target_id = get_mentioned_qq(event) or user_id
+        is_self_target = target_id == user_id
         uuid = None
-        binding = await self.binding_store.get_by_qq(user_id)
+        binding = await self.binding_store.get_by_qq(target_id)
         if binding and binding.minecraft_uuid:
             uuid = format_uuid(binding.minecraft_uuid)
-        if not uuid:
+        if not uuid and is_self_target:
             # 旧版手工映射兜底
             uuid = self.player_bindmap.get(user_id)
         if not uuid:
-            await event.send(MessageChain().message(
-                "你还没有绑定MC账号。\n"
-                "发送 /绑定 关联你的皮肤站账号后即可使用。"
-            ))
+            if is_self_target:
+                message = (
+                    "你还没有绑定MC账号。\n"
+                    "发送 /绑定 关联你的皮肤站账号后即可使用。"
+                )
+            else:
+                message = "该用户还没有绑定MC账号。"
+            await event.send(MessageChain().message(message))
             return
         resp = await self.api_client.get_player_town(uuid)
         if not resp.get("success"):
@@ -271,8 +289,9 @@ class LinkEnginePlugin(Star):
             return
         data = resp.get("data", {})
         town = data.get("town", {})
+        subject = "你所在的城镇" if is_self_target else f"{binding.player_name if binding else '该用户'}所在的城镇"
         await event.send(MessageChain().message(
-            f"你所在的城镇: {town.get('name', '未知')}\n"
+            f"{subject}: {town.get('name', '未知')}\n"
             f"角色: {data.get('role', '未知')}\n"
             f"成员数: {town.get('memberCount', 0)}"
         ))
@@ -310,6 +329,41 @@ class LinkEnginePlugin(Star):
         if text.startswith(command):
             text = text[len(command):]
         return text.strip()
+
+    async def _resolve_player_argument(self, event: AstrMessageEvent, command: str):
+        """将 @ 用户解析为其已绑定的 MC 角色名,普通文本保持原样。"""
+        mentioned_qq = get_mentioned_qq(event)
+        if not mentioned_qq:
+            return self._command_rest(event, command), None
+
+        binding = await self.binding_store.get_by_qq(mentioned_qq)
+        if not binding:
+            return "", "该用户还没有绑定MC账号。"
+        if not binding.player_name:
+            return "", "该用户没有可用的MC角色名。"
+        return binding.player_name, None
+
+    async def _resolve_town_argument(self, event: AstrMessageEvent, command: str):
+        """将 @ 用户解析为其所在城镇名,普通文本保持原样。"""
+        mentioned_qq = get_mentioned_qq(event)
+        if not mentioned_qq:
+            return self._command_rest(event, command), None, None
+
+        binding = await self.binding_store.get_by_qq(mentioned_qq)
+        if not binding:
+            return "", "该用户还没有绑定MC账号。", None
+        if not binding.minecraft_uuid:
+            return "", "该用户没有可用的MC UUID。", binding
+
+        resp = await self.api_client.get_player_town(format_uuid(binding.minecraft_uuid))
+        if not resp.get("success"):
+            return "", resp.get("message", "查询失败"), binding
+        data = resp.get("data", {}) or {}
+        town = data.get("town", {}) or {}
+        town_name = town.get("name")
+        if not town_name:
+            return "", "该用户当前没有加入城镇。", binding
+        return str(town_name), None, binding
 
     @filter.command("查绑定")
     async def cmd_bind_query(self, event: AstrMessageEvent):
@@ -360,15 +414,15 @@ class LinkEnginePlugin(Star):
                 "MC服务器:\n"
                 "  /查服 - 服务器状态 + 在线玩家\n"
                 "  /玩家 或 /在线 - 在线玩家详细列表\n"
-                "  /查 <玩家名> - 查询玩家信息（离线也能查）\n"
+                "  /查 <玩家名> 或 @用户 - 查询玩家信息（离线也能查）\n"
                 "  /余额榜 [数量] - 余额排行榜\n"
                 "  /广播 <内容> - 广播到服务器（管理员）\n"
                 "\n"
                 "HuskTowns 城镇:\n"
                 "  /城镇列表 - 查看所有城镇\n"
-                "  /查城镇 <城镇名> - 城镇详细信息\n"
-                "  /查成员 <城镇名> - 城镇成员列表\n"
-                "  /我的城镇 - 查看自己所在城镇\n"
+                "  /查城镇 <城镇名> 或 @用户 - 城镇详细信息\n"
+                "  /查成员 <城镇名> 或 @用户 - 城镇成员列表\n"
+                "  /我的城镇 或 /我的城镇 @用户 - 查看所在城镇\n"
                 "\n"
                 "账号绑定:\n"
                 "  /绑定 - 绑定皮肤站账号\n"
