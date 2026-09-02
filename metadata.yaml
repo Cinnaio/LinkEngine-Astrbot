@@ -1,7 +1,7 @@
 name: astrbot_plugin_mcbridge
-desc: LinkEngine AstrBot 插件 - 通过 AstrBot 管理 MC 服务器和 HuskTowns 城镇
+desc: LinkEngine AstrBot 插件 - 通过 AstrBot 管理 MC 服务器、HuskTowns 城镇和 EnderPass 邀请
 display_name: LinkEngine-Astrbot
-version: "1.8.0"
+version: "1.9.0"
 author: Cinnaio
 repo: "https://github.com/Cinnaio/LinkEngine-Astrbot"
-plugin_tag: "minecraft,server,husktowns"
+plugin_tag: "minecraft,server,husktowns,enderpass,invitation"

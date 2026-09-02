@@ -1,7 +1,7 @@
 """LinkEngine AstrBot Plugin - Main entry point.
 
 Provides bot commands for managing Minecraft server and HuskTowns towns
-via the LinkEngine REST API.
+via the LinkEngine REST API, plus EnderPass invitation commands.
 """
 
 from astrbot.api.event import filter, AstrMessageEvent, MessageChain
@@ -16,14 +16,16 @@ from .core.api_client import MCBridgeClient
 from .core.binding_store import BindingStore, format_uuid
 from .core.callback_server import CallbackServer
 from .core.oidc_client import OidcClient
+from .core.enderpass_client import EnderPassClient
 from .core.permission import PermissionChecker
 from .core.registration_notifier import RegistrationNotifier
 from .modules.binding_commands import BindingModule, get_mentioned_qq
+from .modules.invitation_commands import InvitationModule
 from .modules.server_commands import ServerCommandsModule
 from .modules.husktowns_commands import HusktownsCommandsModule
 
 
-@register("astrbot_plugin_mcbridge", "Cinnaio", "LinkEngine AstrBot 插件", "1.8.0")
+@register("astrbot_plugin_mcbridge", "Cinnaio", "LinkEngine AstrBot 插件", "1.9.0")
 class LinkEnginePlugin(Star):
     """AstrBot plugin for Minecraft server management via LinkEngine API."""
 
@@ -57,6 +59,21 @@ class LinkEnginePlugin(Star):
         self.registration_notifier = RegistrationNotifier(
             secret=config.get("registration_webhook_secret", ""),
             groups=config.get("registration_notify_groups", []),
+            state_path=data_dir / "registration_events.json",
+        )
+        invitation_api_url = config.get("invitation_api_url", "") or config.get(
+            "oidc_issuer", ""
+        )
+        self.enderpass_client = EnderPassClient(
+            base_url=invitation_api_url,
+            secret=config.get("invitation_api_secret", ""),
+            timeout=config.get("invitation_api_timeout", 10),
+        )
+        self.invitation = InvitationModule(
+            client=self.enderpass_client,
+            store=self.binding_store,
+            history_limit=config.get("invitation_history_limit", 10),
+            invitee_limit=config.get("invitation_invitee_limit", 20),
         )
         self.binding = BindingModule(
             store=self.binding_store,
@@ -320,6 +337,54 @@ class LinkEnginePlugin(Star):
         result = await self.binding.cmd_bind_info(event)
         await event.send(MessageChain().message(result))
 
+    # ==================== 邀请命令 ====================
+
+    @filter.command("我的邀请")
+    async def cmd_my_invitation(self, event: AstrMessageEvent):
+        """/我的邀请 - 查看邀请码资格和邀请统计（私聊）"""
+        result = await self.invitation.cmd_summary(event)
+        await event.send(MessageChain().message(result))
+
+    @filter.command("邀请码")
+    async def cmd_invitation_generate(self, event: AstrMessageEvent):
+        """/邀请码 - 生成邀请码（私聊）"""
+        result = await self.invitation.cmd_generate(event)
+        await event.send(MessageChain().message(result))
+
+    @filter.command("生成邀请码")
+    async def cmd_invitation_generate_alias(self, event: AstrMessageEvent):
+        """/生成邀请码 - 生成邀请码（私聊）"""
+        result = await self.invitation.cmd_generate(event)
+        await event.send(MessageChain().message(result))
+
+    @filter.command("邀请记录")
+    async def cmd_invitation_history(self, event: AstrMessageEvent):
+        """/邀请记录 - 查看自己生成的邀请码（私聊）"""
+        result = await self.invitation.cmd_history(event)
+        await event.send(MessageChain().message(result))
+
+    @filter.command("邀请名单")
+    async def cmd_invitation_invitees(self, event: AstrMessageEvent):
+        """/邀请名单 - 查看通过自己邀请码注册的玩家（私聊）"""
+        result = await self.invitation.cmd_invitees(event)
+        await event.send(MessageChain().message(result))
+
+    @filter.command("邀请榜")
+    async def cmd_invitation_leaderboard(self, event: AstrMessageEvent):
+        """/邀请榜 [数量] - 查看全服邀请排行"""
+        result = await self.invitation.cmd_leaderboard(
+            event, self._command_rest(event, "邀请榜")
+        )
+        await event.send(MessageChain().message(result))
+
+    @filter.command("撤销邀请码")
+    async def cmd_invitation_revoke(self, event: AstrMessageEvent):
+        """/撤销邀请码 <记录编号> - 撤销自己的邀请码（私聊）"""
+        result = await self.invitation.cmd_revoke(
+            event, self._command_rest(event, "撤销邀请码")
+        )
+        await event.send(MessageChain().message(result))
+
     @staticmethod
     def _command_rest(event: AstrMessageEvent, command: str) -> str:
         """取指令名之后的剩余文本。
@@ -411,6 +476,15 @@ class LinkEnginePlugin(Star):
         help_image = os.path.join(os.path.dirname(__file__), "assets", "help.png")
         if os.path.exists(help_image):
             await event.send(MessageChain().file_image(help_image))
+            await event.send(MessageChain().message(
+                "新增 EnderPass 邀请命令（邀请码、记录、名单请私聊）:\n"
+                "  /我的邀请 - 查看邀请资格和统计\n"
+                "  /邀请码 或 /生成邀请码 - 生成邀请码\n"
+                "  /邀请记录 - 查看邀请码历史\n"
+                "  /邀请名单 - 查看邀请名单\n"
+                "  /邀请榜 [数量] - 查看全服邀请排行\n"
+                "  /撤销邀请码 <记录编号> - 撤销邀请码"
+            ))
         else:
             await event.send(MessageChain().message(
                 "命令帮助:\n"
@@ -431,7 +505,15 @@ class LinkEnginePlugin(Star):
                 "账号绑定:\n"
                 "  /绑定 - 绑定皮肤站账号\n"
                 "  /解绑 - 解除绑定\n"
-                "  /我的绑定 - 查看绑定信息"
+                "  /我的绑定 - 查看绑定信息\n"
+                "\n"
+                "邀请码（邀请码、记录、名单请私聊）:\n"
+                "  /我的邀请 - 查看邀请资格和统计\n"
+                "  /邀请码 - 生成邀请码\n"
+                "  /邀请记录 - 查看邀请码历史\n"
+                "  /邀请名单 - 查看邀请名单\n"
+                "  /邀请榜 [数量] - 查看全服邀请排行\n"
+                "  /撤销邀请码 <记录编号> - 撤销邀请码"
             ))
 
     # ==================== Lifecycle ====================
@@ -440,5 +522,6 @@ class LinkEnginePlugin(Star):
         """Cleanup on plugin unload."""
         await self.callback_server.stop()
         await self.oidc.close()
+        await self.enderpass_client.close()
         await self.api_client.close()
         logger.info("[LinkEngine] Plugin terminated, API client closed.")

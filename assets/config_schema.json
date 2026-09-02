@@ -46,5 +46,35 @@
     },
     "default": [],
     "hint": "收到新玩家注册后发送通知的群号列表；留空表示只记录不发送"
+  },
+  "invitation_api_url": {
+    "description": "EnderPass 邀请 API 地址",
+    "type": "string",
+    "default": "",
+    "hint": "默认复用 oidc_issuer；只有 EnderPass API 使用独立地址时才需要填写"
+  },
+  "invitation_api_secret": {
+    "description": "EnderPass 邀请 API 密钥",
+    "type": "string",
+    "default": "",
+    "hint": "与 EnderPass 配置中的 enderpass_astrbot_api_secret 保持一致，不要与 webhook 或 MC API Key 复用"
+  },
+  "invitation_api_timeout": {
+    "description": "EnderPass 邀请 API 超时（秒）",
+    "type": "int",
+    "default": 10,
+    "hint": "邀请码查询与生成请求的最大等待时间"
+  },
+  "invitation_history_limit": {
+    "description": "邀请码历史显示条数",
+    "type": "int",
+    "default": 10,
+    "hint": "私聊 /邀请记录 时最多显示的最近记录数"
+  },
+  "invitation_invitee_limit": {
+    "description": "邀请名单显示条数",
+    "type": "int",
+    "default": 20,
+    "hint": "私聊 /邀请名单 时最多显示的最近邀请数"
   }
 }
